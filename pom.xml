@@ -12,7 +12,6 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
 		<javafx.version>15.0.1</javafx.version>
 	</properties>
 
@@ -36,6 +35,14 @@
 		    <artifactId>commons-lang3</artifactId>
 		    <version>[3.12.0,3.13.0)</version>
 		</dependency>
+
+		<!-- used in packet for byte arrays -->		
+		<dependency>
+		    <groupId>com.google.guava</groupId>
+		    <artifactId>guava-primitives</artifactId>
+		    <version>r03</version>
+		</dependency>	
+		
 	</dependencies>
 
 	<build>

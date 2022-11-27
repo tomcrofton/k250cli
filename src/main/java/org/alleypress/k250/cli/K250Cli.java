@@ -1,6 +1,7 @@
 package org.alleypress.k250.cli;
 
 import org.alleypress.k250.serial.JSSerialAdapter;
+import org.alleypress.k250.serial.K250Commands;
 import org.alleypress.k250.serial.SerialAdapter;
 import org.alleypress.k250.serial.SerialException;
 import org.apache.commons.cli.CommandLine;
@@ -18,7 +19,9 @@ public class K250Cli {
 		options.addOption("h", "help", false, "Print this help screen.")
 		.addOption("l", "list", false, "List serial ports")
 		.addOption("p", "port", true, "Serial port to use")
-		.addOption("i","info", false,"Show connected interface adapter info");
+		.addOption("i","info", false,"Show connected interface adapter info")
+		.addOption("o","out", true,"output file name")
+		.addOption("g", "get", true, "Get Operation "+K250Commands.getGetCommandList());
 	}
 	
 	public void process(String[] args) throws SerialException {
@@ -52,11 +55,11 @@ public class K250Cli {
 		} else {
 			String[] names = sa.getPortNames();
 			if (names.length==0) {
-				System.out.println("No ports found");
+				System.err.println("No ports found");
 				return;
 			}
 			if (names.length>1) {
-				System.out.println("Need to specify serial port");
+				System.err.println("Need to specify serial port");
 				return;
 			}
 			sa.selectPort(names[0]);
@@ -66,6 +69,27 @@ public class K250Cli {
 			System.out.println(sa.getAdapterInfo());
 			return;
 		}		
+		
+		if (cmd.hasOption('g')) {
+			String oper = cmd.getOptionValue('g');
+			if (!K250Commands.getGetCommandList().contains(oper)) {
+				System.err.println("Get Operation not found, "+oper);
+				return;
+			}
+			
+			//begin temp
+			System.out.println(sa.getConfig());
+			try {
+				Thread.sleep(800);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			sa.sendReset();
+			//end temp
+			return;
+		}		
+
 	}
 	
 	public void showHelp() {

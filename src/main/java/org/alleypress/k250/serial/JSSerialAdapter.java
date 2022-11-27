@@ -52,24 +52,155 @@ public class JSSerialAdapter implements SerialAdapter {
 		port.openPort();
 		DataInputStream ins = new DataInputStream(port.getInputStream());
 		DataOutputStream outs = new DataOutputStream(port.getOutputStream());
-		StringBuilder bufr = new StringBuilder();
+		String result = null;
 
 		try {
 			outs.write(63); // '?'
-
-			boolean notDone = true;
-			while (notDone) {// read all bytes
-				char b = (char) ins.read();
-				if (b == 0x0a)
-					notDone = false;
-				else
-					bufr.append(b);
-			}
+			result = readForChar((char)0x0a,ins);
 		} catch (IOException e) {
 			throw new SerialException(e);
 		}
 		port.closePort();
-		return bufr.toString().trim();
+		return result;
+	}
+	
+	private String readForChar(char c,DataInputStream ins) throws IOException {
+		StringBuilder bufr = new StringBuilder();
+		boolean notDone = true;
+		while (notDone) {// read all bytes
+			char b = (char) ins.read();
+			if (b == c)
+				notDone = false;
+			else
+				bufr.append(b);
+		}		
+		return bufr.toString();
 	}
 
+	private void sendBegin(DataInputStream ins,DataOutputStream out) throws SerialException {
+		try {
+			out.write('B');
+			String s = readForChar('<',ins);
+			if (!"OK".equals(s)) {
+				throw new SerialException("Expecting OK, received "+s);
+			}
+		} catch (IOException e) {
+			throw new SerialException(e.getMessage());
+		}
+	}
+
+	private void sendPacket(DataInputStream ins,DataOutputStream out, RawPacket packet) throws SerialException {
+		try {
+			out.write('P');
+			out.write(packet.asByteArray());
+			String s = readForChar('<',ins);
+			if (!"OK".equals(s)) {
+				throw new SerialException("Expecting OK, received "+s);
+			}
+		} catch (IOException e) {
+			throw new SerialException(e.getMessage());
+		}
+	}
+
+	private RawPacket getPacket(DataInputStream ins,DataOutputStream out) throws SerialException {
+    	//a packet is 0x10,0x02,SizeH,SizeL,databytes,ChkSumH,ChkSumL
+    	RawPacket p = new RawPacket();
+		try {
+			out.write('G');
+			byte b=(byte)ins.read(); //should be 0x10
+			p.addByte(b);
+			b=(byte)ins.read(); //should be 0x02
+			p.addByte(b);
+			
+			int dataSize = 0;
+	
+			b=(byte)ins.read(); //size high
+			p.addByte(b);
+			if (b==0x10) {
+				b=(byte)ins.read();
+				p.addByte(b);
+				b=EscapeLookup.getOriginal(b);
+			}
+			dataSize=b;
+
+			b=(byte)ins.read();  //size low
+			p.addByte(b);
+			if (b==0x10) {
+				b=(byte)ins.read();
+				p.addByte(b);
+				b=EscapeLookup.getOriginal(b);
+			}
+		    dataSize = (dataSize<<8)+b;		    
+		    dataSize+=2; // add on checksum
+
+		    if (dataSize>512) dataSize=10; //something is wrong
+
+		    while (dataSize>0) {
+				b=(byte)ins.read();
+				p.addByte(b);
+		        // don't count the escp char
+				if (b==0x10) {
+					b=(byte)ins.read();
+					p.addByte(b);
+				}
+		        dataSize--;
+		    }
+		} catch (IOException e) {
+			throw new SerialException(e.getMessage());
+		}
+		return p;
+	}
+
+	
+	
+	private void sendOK(DataInputStream ins,DataOutputStream out) throws SerialException {
+		try {
+			out.write('K');
+			String s = readForChar('<',ins);
+			if (!"OK".equals(s)) {
+				throw new SerialException("Expecting OK, received "+s);
+			}
+		} catch (IOException e) {
+			throw new SerialException(e.getMessage());
+		}
+	}
+	
+	@Override
+	public void sendReset() throws SerialException {
+		assertPortSelected();
+		port.openPort();
+		DataInputStream ins = new DataInputStream(port.getInputStream());
+		DataOutputStream outs = new DataOutputStream(port.getOutputStream());			
+		try {
+			outs.write('R');
+			String s = readForChar('<',ins);
+			System.out.println(s);
+			if (!"OK".equals(s)) {
+				throw new SerialException("Expecting OK, received "+s);
+			}
+		} catch (IOException e) {
+			throw new SerialException(e.getMessage());
+		}
+		port.closePort();
+	}
+	
+
+	@Override
+	public String getConfig() throws SerialException {
+		assertPortSelected();
+		port.openPort();
+		DataInputStream ins = new DataInputStream(port.getInputStream());
+		DataOutputStream outs = new DataOutputStream(port.getOutputStream());
+		sendBegin(ins,outs);
+		sendPacket(ins, outs, K250Commands.GET_CONFIG);
+		RawPacket rp = getPacket(ins, outs);
+		sendOK(ins,outs);
+		port.closePort();
+		
+		StringBuilder sb = new StringBuilder();
+		for (byte b:rp.asByteArray()) {
+			sb.append(String.format("%02x ", b));
+		}
+		return sb.toString();
+	}
 }
