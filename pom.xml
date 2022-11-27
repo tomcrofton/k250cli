@@ -30,6 +30,12 @@
 			<version>[1.5.0,1.6.0)</version>
 		</dependency>
 
+		<!-- mostly for StringUtils -->
+		<dependency>
+		    <groupId>org.apache.commons</groupId>
+		    <artifactId>commons-lang3</artifactId>
+		    <version>[3.12.0,3.13.0)</version>
+		</dependency>
 	</dependencies>
 
 	<build>
