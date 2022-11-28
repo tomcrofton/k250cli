@@ -7,4 +7,6 @@ public interface SerialAdapter {
 
 	public String getConfig() throws SerialException;
 	public void sendReset() throws SerialException;
+	
+	public String loopTest(int packets, int size) throws SerialException;
 }

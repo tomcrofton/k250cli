@@ -78,15 +78,7 @@ public class JSSerialAdapter implements SerialAdapter {
 	}
 
 	private void sendBegin(DataInputStream ins,DataOutputStream out) throws SerialException {
-		try {
-			out.write('B');
-			String s = readForChar('<',ins);
-			if (!"OK".equals(s)) {
-				throw new SerialException("Expecting OK, received "+s);
-			}
-		} catch (IOException e) {
-			throw new SerialException(e.getMessage());
-		}
+		sendChar(ins,out,'B');
 	}
 
 	private void sendPacket(DataInputStream ins,DataOutputStream out, RawPacket packet) throws SerialException {
@@ -154,15 +146,19 @@ public class JSSerialAdapter implements SerialAdapter {
 	
 	
 	private void sendOK(DataInputStream ins,DataOutputStream out) throws SerialException {
+		sendChar(ins,out,'K');
+	}
+	
+	private void sendChar(DataInputStream ins,DataOutputStream out,char c) throws SerialException {
 		try {
-			out.write('K');
+			out.write(c);
 			String s = readForChar('<',ins);
 			if (!"OK".equals(s)) {
 				throw new SerialException("Expecting OK, received "+s);
 			}
 		} catch (IOException e) {
 			throw new SerialException(e.getMessage());
-		}
+		}	
 	}
 	
 	@Override
@@ -171,16 +167,7 @@ public class JSSerialAdapter implements SerialAdapter {
 		port.openPort();
 		DataInputStream ins = new DataInputStream(port.getInputStream());
 		DataOutputStream outs = new DataOutputStream(port.getOutputStream());			
-		try {
-			outs.write('R');
-			String s = readForChar('<',ins);
-			System.out.println(s);
-			if (!"OK".equals(s)) {
-				throw new SerialException("Expecting OK, received "+s);
-			}
-		} catch (IOException e) {
-			throw new SerialException(e.getMessage());
-		}
+		sendChar(ins,outs,'R');
 		port.closePort();
 	}
 	
@@ -201,6 +188,32 @@ public class JSSerialAdapter implements SerialAdapter {
 		for (byte b:rp.asByteArray()) {
 			sb.append(String.format("%02x ", b));
 		}
+		return sb.toString();
+	}
+
+	@Override
+	public String loopTest(int packets, int size) throws SerialException {
+		assertPortSelected();
+		StringBuilder sb = new StringBuilder();
+		
+		RawPacket loopPacket = PacketUtil.newLoopbackPacket(size);
+		
+		port.openPort();
+		DataInputStream ins = new DataInputStream(port.getInputStream());
+		DataOutputStream outs = new DataOutputStream(port.getOutputStream());
+		sendBegin(ins,outs);
+
+		for (int i=0;i<size;i++) {
+			sendPacket(ins, outs, loopPacket);
+			RawPacket rp = getPacket(ins, outs);
+			sb.append(" P:").append(rp.asByteArray().length);
+			sendOK(ins,outs);
+		}
+
+		sendChar(ins,outs,'E');
+
+		port.closePort();
+		sb.append(" total:").append(size);
 		return sb.toString();
 	}
 }

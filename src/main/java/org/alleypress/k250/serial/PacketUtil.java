@@ -8,6 +8,8 @@ import com.google.common.primitives.Bytes;
 
 public class PacketUtil {
 	
+	public static int PACKET_DATA_SIZE_MAX = 512;
+	
 	public static int getDataSize(RawPacket packet) {
 		List<Byte> rawData = packet.asByteList();
 		if (rawData.size()<4) return -1;
@@ -31,8 +33,8 @@ public class PacketUtil {
 	
 	
 	public static RawPacket newLoopbackPacket(int size) {
-		if (size<0 || size > 512)
-			size=512;
+		if (size<0 || size > PACKET_DATA_SIZE_MAX)
+			size=PACKET_DATA_SIZE_MAX;
 		
 		ArrayList<Byte> block = new ArrayList<Byte>();
 		byte x=0;
@@ -43,7 +45,7 @@ public class PacketUtil {
 	}
 	
 	public static RawPacket buildPacket(byte[] ba) {
-		if (ba.length > 512)
+		if (ba.length > PACKET_DATA_SIZE_MAX)
 			throw new IllegalArgumentException("byte array is too long");
 
 		//always start with 10,02

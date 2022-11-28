@@ -1,5 +1,7 @@
 package org.alleypress.k250.cli;
 
+import java.util.regex.Pattern;
+
 import org.alleypress.k250.serial.JSSerialAdapter;
 import org.alleypress.k250.serial.K250Commands;
 import org.alleypress.k250.serial.SerialAdapter;
@@ -10,6 +12,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.lang3.StringUtils;
 
 public class K250Cli {
 
@@ -21,6 +24,7 @@ public class K250Cli {
 		.addOption("p", "port", true, "Serial port to use")
 		.addOption("i","info", false,"Show connected interface adapter info")
 		.addOption("o","out", true,"output file name")
+		.addOption("x","loop",true,"loopback test <packets,size>")
 		.addOption("g", "get", true, "Get Operation "+K250Commands.getGetCommandList());
 	}
 	
@@ -51,7 +55,12 @@ public class K250Cli {
 		}
 		
 		if (cmd.hasOption('p')) {
-			sa.selectPort(cmd.getOptionValue('p'));
+			String prt = cmd.getOptionValue('p');
+			if (StringUtils.isBlank(prt)) {
+				System.err.println("Port name not provided");
+				return;
+			}
+			sa.selectPort(prt);
 		} else {
 			String[] names = sa.getPortNames();
 			if (names.length==0) {
@@ -70,6 +79,23 @@ public class K250Cli {
 			return;
 		}		
 		
+		if (cmd.hasOption('x')) {
+			String vals = cmd.getOptionValue('x');
+			if (StringUtils.isBlank(vals) || (!Pattern.compile("^\\d{1,2},\\d{2,3}$").matcher(vals).find())) {
+				System.err.println("need to specify numberOfPackets,packetSize (1-99),(10-512)");
+				return;
+			}
+			String[] data = vals.split(",");
+			int numPackets=Integer.parseInt(data[0]);
+			int packetSize=Integer.parseInt(data[1]);
+			
+			System.out.println(sa.loopTest(numPackets,packetSize));		
+			preResetPause();
+			sa.sendReset();
+			return;
+					
+		}
+		
 		if (cmd.hasOption('g')) {
 			String oper = cmd.getOptionValue('g');
 			if (!K250Commands.getGetCommandList().contains(oper)) {
@@ -79,17 +105,20 @@ public class K250Cli {
 			
 			//begin temp
 			System.out.println(sa.getConfig());
-			try {
-				Thread.sleep(800);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			preResetPause();
 			sa.sendReset();
 			//end temp
 			return;
 		}		
 
+	}
+	
+	private static void preResetPause() {
+		try {
+			Thread.sleep(800);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}		
 	}
 	
 	public void showHelp() {
