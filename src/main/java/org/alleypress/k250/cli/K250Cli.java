@@ -2,6 +2,7 @@ package org.alleypress.k250.cli;
 
 import java.util.regex.Pattern;
 
+import org.alleypress.k250.serial.ConsoleProgressWatcher;
 import org.alleypress.k250.serial.JSSerialAdapter;
 import org.alleypress.k250.serial.K250Commands;
 import org.alleypress.k250.serial.SerialAdapter;
@@ -17,7 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 public class K250Cli {
 
 	private Options options = new Options();
-
+	
 	public K250Cli() {
 		options.addOption("h", "help", false, "Print this help screen.")
 		.addOption("l", "list", false, "List serial ports")
@@ -25,6 +26,7 @@ public class K250Cli {
 		.addOption("i","info", false,"Show connected interface adapter info")
 		.addOption("o","out", true,"output file name")
 		.addOption("x","loop",true,"loopback test <packets,size>")
+		.addOption("e","echo",true,"local echo <packet size>")
 		.addOption("g", "get", true, "Get Operation "+K250Commands.getGetCommandList());
 	}
 	
@@ -42,6 +44,8 @@ public class K250Cli {
 			return;
 		}
 		SerialAdapter sa = new JSSerialAdapter();
+		sa.setProgressWatcher(new ConsoleProgressWatcher());
+
 		if (cmd.hasOption('l')) {
 			String[] names = sa.getPortNames();
 			if (names.length==0) {
@@ -53,6 +57,8 @@ public class K250Cli {
 			}
 			return;
 		}
+		
+		//from here out you need the serial port
 		
 		if (cmd.hasOption('p')) {
 			String prt = cmd.getOptionValue('p');
@@ -74,10 +80,26 @@ public class K250Cli {
 			sa.selectPort(names[0]);
 		}
 		
+		//from here on, a serial port is selected
+		
 		if (cmd.hasOption('i')) {
 			System.out.println(sa.getAdapterInfo());
 			return;
 		}		
+		
+		if (cmd.hasOption('e')) {
+			String vals = cmd.getOptionValue('e');
+			if (StringUtils.isBlank(vals) || (!Pattern.compile("^\\d{1,3}$").matcher(vals).find())) {
+				System.err.println("need to specify packet size (2-512)");
+				return;
+			}
+			int v = Integer.valueOf(vals);
+			if (v<2) v=2;
+			if (v>512) v=512;
+			sa.echoTest(v);
+			return;
+		}		
+		
 		
 		if (cmd.hasOption('x')) {
 			String vals = cmd.getOptionValue('x');
@@ -88,9 +110,8 @@ public class K250Cli {
 			String[] data = vals.split(",");
 			int numPackets=Integer.parseInt(data[0]);
 			int packetSize=Integer.parseInt(data[1]);
-			
-			System.out.println(sa.loopTest(numPackets,packetSize));		
-			preResetPause();
+			sa.loopTest(numPackets, packetSize);
+			pause(800);
 			sa.sendReset();
 			return;
 					
@@ -105,7 +126,7 @@ public class K250Cli {
 			
 			//begin temp
 			System.out.println(sa.getConfig());
-			preResetPause();
+			pause(800);
 			sa.sendReset();
 			//end temp
 			return;
@@ -113,9 +134,9 @@ public class K250Cli {
 
 	}
 	
-	private static void preResetPause() {
+	private static void pause(int millis) {
 		try {
-			Thread.sleep(800);
+			Thread.sleep(millis);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}		

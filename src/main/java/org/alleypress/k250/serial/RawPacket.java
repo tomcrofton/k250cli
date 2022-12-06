@@ -1,7 +1,5 @@
 package org.alleypress.k250.serial;
 
-import java.io.DataInputStream;
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;

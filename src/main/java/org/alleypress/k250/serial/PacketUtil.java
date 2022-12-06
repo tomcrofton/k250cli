@@ -1,47 +1,19 @@
 package org.alleypress.k250.serial;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import com.google.common.primitives.Bytes;
-
-
 public class PacketUtil {
 	
 	public static int PACKET_DATA_SIZE_MAX = 512;
-	
-	public static int getDataSize(RawPacket packet) {
-		List<Byte> rawData = packet.asByteList();
-		if (rawData.size()<4) return -1;
 		
-		int index=2;
-		
-		byte x = rawData.get(index++);
-		if (x == 0x10) {
-			x = rawData.get(index++);
-			x = EscapeLookup.getOriginal(x);
-		}
-		int result=Byte.toUnsignedInt(x);
-		x = rawData.get(index++);
-		if (x == 0x10) {
-			x = rawData.get(index++);
-			x = EscapeLookup.getOriginal(x);
-		}
-		result=(result<<8)+Byte.toUnsignedInt(x);
-		return result;
-	}	
-	
-	
-	public static RawPacket newLoopbackPacket(int size) {
+	public static RawPacket newLoopbackStartPacket(int size) {
 		if (size<0 || size > PACKET_DATA_SIZE_MAX)
 			size=PACKET_DATA_SIZE_MAX;
+
+		//loop start is 4 bytes, last 2 are the size
+		byte[] lbData = new byte[] {0x00,0x17,0x00,0x00};
+		lbData[2] = (byte)(((size&0xff00)>>8)&0xff);
+		lbData[3] = (byte)(size&0xff);	
 		
-		ArrayList<Byte> block = new ArrayList<Byte>();
-		byte x=0;
-		for (int i=0;i<size;i++) {
-			block.add(x++);
-		}
-		return buildPacket(Bytes.toArray(block));
+		return buildPacket(lbData);
 	}
 	
 	public static RawPacket buildPacket(byte[] ba) {
@@ -73,7 +45,6 @@ public class PacketUtil {
 		addByteWithEscape(result,loB);
 
 		return result;
-		
 	}
 	
 	private static void addByteWithEscape(RawPacket p, byte b) {
@@ -85,22 +56,55 @@ public class PacketUtil {
 		}		
 	}
 	
-	public static byte[] getDataBytes(RawPacket packet) {
-		ArrayList<Byte> result = new ArrayList<Byte>();
-		
-		int bytesToRead=getDataSize(packet);
-		int index=4;
-		
-		List<Byte> rawData = packet.asByteList();
-		while (bytesToRead>0) {
-			byte b = rawData.get(index++);
-			if (b==0x10) {
-				b = EscapeLookup.getOriginal(rawData.get(index++));
-			}
-			result.add(b);
-			bytesToRead--;
+	public static String bytesToHex(byte[] ba) {
+		StringBuilder result = new StringBuilder();
+		for (int i = 0; i < ba.length; i++) {
+			result.append(String.format("%02X ", ba[i]));
 		}
-		return Bytes.toArray(result);
-	}	
+		return result.toString();
+	}
+	
+	public static boolean verifyCheckSum(RawPacket pkt) {
+		short myCheckSum=0;
+		short givenCheckSum=0;
+		
+		byte[] p = pkt.asByteArray();
+		int index=2;
 
+		int dataSize = 0;
+		
+		byte x = p[index++]; //size high
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+		dataSize=x&0xFF;
+
+		x = p[index++]; //size low
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+	    dataSize = (dataSize<<8)+(x&0xFF);
+
+	    while (dataSize>0) {
+			x = p[index++]; //size low
+			if (x==0x10) {
+				x = EscapeLookup.getOriginal(p[index++]);
+			}
+			myCheckSum+=(x&0x00FF);
+			dataSize--;
+	    }
+		x = p[index++]; //check sum size high
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+		givenCheckSum=(short)(x&0x00ff);
+		givenCheckSum = (short)(givenCheckSum<<8);
+		x = p[index++]; //check sum low5
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+		givenCheckSum = (short)(givenCheckSum+(x&0xff));
+		return (myCheckSum==givenCheckSum);
+	}
+	
 }

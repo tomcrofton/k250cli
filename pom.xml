@@ -31,18 +31,18 @@
 
 		<!-- mostly for StringUtils -->
 		<dependency>
-		    <groupId>org.apache.commons</groupId>
-		    <artifactId>commons-lang3</artifactId>
-		    <version>[3.12.0,3.13.0)</version>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>[3.12.0,3.13.0)</version>
 		</dependency>
 
-		<!-- used in packet for byte arrays -->		
+		<!-- used in packet for byte arrays -->
 		<dependency>
-		    <groupId>com.google.guava</groupId>
-		    <artifactId>guava-primitives</artifactId>
-		    <version>r03</version>
-		</dependency>	
-		
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava-primitives</artifactId>
+			<version>r03</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -53,6 +53,29 @@
 				<configuration>
 					<release>11</release>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<configuration>
+					<descriptorRefs>
+						<descriptorRef>jar-with-dependencies</descriptorRef>
+					</descriptorRefs>
+					<archive>
+						<manifest>
+							<mainClass>org.alleypress.k250.cli.K250Cli</mainClass>
+						</manifest>
+					</archive>
+				</configuration>
+				<executions>
+					<execution>
+						<id>make-assembly</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
