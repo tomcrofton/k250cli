@@ -1,10 +1,17 @@
 package org.alleypress.k250.cli;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.alleypress.k250.serial.ConsoleProgressWatcher;
 import org.alleypress.k250.serial.JSSerialAdapter;
 import org.alleypress.k250.serial.K250Commands;
+import org.alleypress.k250.serial.K250File;
+import org.alleypress.k250.serial.PacketUtil;
 import org.alleypress.k250.serial.SerialAdapter;
 import org.alleypress.k250.serial.SerialException;
 import org.apache.commons.cli.CommandLine;
@@ -18,19 +25,22 @@ import org.apache.commons.lang3.StringUtils;
 public class K250Cli {
 
 	private Options options = new Options();
+	private Set<K250File> fileTypes = EnumSet.allOf(K250File.class);
 	
 	public K250Cli() {
 		options.addOption("h", "help", false, "Print this help screen.")
 		.addOption("l", "list", false, "List serial ports")
 		.addOption("p", "port", true, "Serial port to use")
 		.addOption("i","info", false,"Show connected interface adapter info")
-		.addOption("o","out", true,"output file name")
+		.addOption("f","file", true,"input or output file name <filename>")
 		.addOption("x","loop",true,"loopback test <packets,size>")
 		.addOption("e","echo",true,"local echo <packet size>")
-		.addOption("g", "get", true, "Get Operation "+K250Commands.getGetCommandList());
+		.addOption("c","config", false,"Get Config")
+		.addOption("g", "get", true, "Get File "+fileTypes.toString().toLowerCase())
+		.addOption("s", "send", true, "Send File "+fileTypes.toString().toLowerCase());
 	}
 	
-	public void process(String[] args) throws SerialException {
+	public void process(String[] args) throws SerialException, IOException {
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd = null;
 		try { 
@@ -116,22 +126,68 @@ public class K250Cli {
 			return;
 					
 		}
-		
-		if (cmd.hasOption('g')) {
-			String oper = cmd.getOptionValue('g');
-			if (!K250Commands.getGetCommandList().contains(oper)) {
-				System.err.println("Get Operation not found, "+oper);
-				return;
-			}
-			
-			//begin temp
-			System.out.println(sa.getConfig());
+
+		if (cmd.hasOption('c')) {
+			System.out.println(PacketUtil.bytesToHex(sa.getConfig()));
 			pause(800);
 			sa.sendReset();
-			//end temp
 			return;
 		}		
 
+		if (cmd.hasOption('g')) {
+			String oper = cmd.getOptionValue('g').toUpperCase();
+			//make sure we know the operation
+			K250File fileType;
+			try {
+				fileType = K250File.valueOf(oper.toUpperCase());
+			} catch (IllegalArgumentException e) {
+				System.err.println("Unknown file type "+oper);
+				return;
+			}
+			
+			//make sure we have a file for results
+			if (!cmd.hasOption('f') || cmd.getOptionValue('f')==null) {
+				System.err.println("Output file required");
+				return;
+			}
+			String filename = cmd.getOptionValue('f');
+			
+			
+			sa.saveDigitizer(new File(filename));
+			
+			
+			pause(800);
+			sa.sendReset();
+			return;
+		}		
+
+		if (cmd.hasOption('s')) {
+			String oper = cmd.getOptionValue('s').toUpperCase();
+			//make sure we know the operation
+			K250File fileType;
+			try {
+				fileType = K250File.valueOf(oper.toUpperCase());
+			} catch (IllegalArgumentException e) {
+				System.err.println("Unknown file type "+oper);
+				return;
+			}
+			
+			//make sure we have a file for input
+			if (!cmd.hasOption('f') || cmd.getOptionValue('f')==null) {
+				System.err.println("Input file required");
+				return;
+			}
+			String filename = cmd.getOptionValue('f');
+			
+			
+			sa.loadDigitizer(new File(filename));
+			
+			
+			pause(800);
+			sa.sendReset();
+			return;
+		}			
+		
 	}
 	
 	private static void pause(int millis) {
@@ -151,7 +207,7 @@ public class K250Cli {
 		K250Cli cli = new K250Cli();
 		try {
 			cli.process(args);
-		} catch (SerialException e) {
+		} catch (SerialException | IOException e) {
 			System.err.println(e.getMessage());
 		}
 	}

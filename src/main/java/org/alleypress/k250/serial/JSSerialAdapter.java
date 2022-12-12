@@ -2,7 +2,12 @@ package org.alleypress.k250.serial;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 
 import org.apache.commons.lang3.StringUtils;
@@ -203,18 +208,13 @@ public class JSSerialAdapter implements SerialAdapter {
 	}
 	
 	@Override
-	public String getConfig() throws SerialException {
+	public byte[] getConfig() throws SerialException {
 		openPort();
 		sendBegin();
 		sendPacket(K250Commands.GET_CONFIG);
 		RawPacket rp = getPacket();
 		closePort();
-		
-		StringBuilder sb = new StringBuilder();
-		for (byte b:rp.asByteArray()) {
-			sb.append(String.format("%02x ", b));
-		}
-		return sb.toString();
+		return PacketUtil.unpack(rp);
 	}
 
 	@Override
@@ -227,7 +227,9 @@ public class JSSerialAdapter implements SerialAdapter {
 		sendPacket(loopStartPacket);
 
 		for (int i=0;i<packets;i++) {
-			sendChar('l');
+			RawPacket p = getPacket();
+			sendPacket(p);
+//			sendChar('l');
 			setProgress(((double)i)/packets);
 			delay(3);
 		}
@@ -269,5 +271,88 @@ public class JSSerialAdapter implements SerialAdapter {
 			throw new SerialException(e);
 		}
 		closePort();
+	}
+	
+	@Override
+	public void saveDigitizer(File f) throws SerialException, IOException {
+		openPort();
+		sendBegin();
+		sendPacket(K250Commands.GET_DIGI1);
+		RawPacket rp = getPacket();
+		byte[] data = PacketUtil.unpack(rp); // 4 bytes of a 32 bit unsigned int
+		int dataSize = ((0xFF & data[0]) << 24) | ((0xFF & data[1]) << 16) |((0xFF & data[2]) << 8) | (0xFF & data[3]);		
+		System.out.println("File Size: "+dataSize);
+		if (dataSize<1) {
+			System.err.println("No data available");
+			return;
+		}
+		beginProgress();
+		FileOutputStream fos = new FileOutputStream(f);
+		ObjectOutputStream fout = new ObjectOutputStream(fos);
+		
+		fout.writeObject(K250File.DIGI);
+		fout.writeInt(dataSize);
+
+		int readSize=0;
+		boolean keepGoing=true;
+		while (keepGoing) {
+			rp = getPacket();
+			fout.writeObject(rp);
+			readSize+=PacketUtil.getDataSize(rp);
+			setProgress(((double)readSize)/dataSize);
+			if (dataSize-readSize<512) {
+				//should be zero, but have seen different 
+				keepGoing=false;
+			}
+		}
+		if (dataSize!=readSize) {
+			System.err.println("WARN: dataSize-readSize="+(dataSize-readSize));
+		}
+		endProgress();
+		System.out.println("Size at end="+readSize);
+		fout.close();
+		fos.close();
+		closePort();
+	}
+
+	@Override
+	public void loadDigitizer(File f) throws SerialException, IOException {
+		FileInputStream fis = new FileInputStream(f);
+		ObjectInputStream dataIn = new ObjectInputStream(fis);
+		int dataSize=0;
+		int readSize=0;
+		try {
+			K250File k2f = (K250File)dataIn.readObject();
+			if (!K250File.DIGI.equals(k2f)) {
+				System.err.println(f.getName()+" is not a digitizer file");
+				return;
+			}
+			dataSize = dataIn.readInt();
+			openPort();
+			sendBegin();
+			beginProgress();
+		
+			sendPacket(K250Commands.SET_DIGI1);
+			RawPacket rp = getPacket(); //returns 4 bytes all zeros
+			
+			boolean keepGoing=true;
+			while (keepGoing) {
+				rp = (RawPacket)dataIn.readObject();
+				sendPacket(rp);
+				int packetSize=PacketUtil.getDataSize(rp);
+				readSize+=packetSize;
+				setProgress(((double)readSize)/dataSize);
+				if (dataSize-readSize<512 && packetSize<512) {
+					//should be zero, but have seen different 
+					keepGoing=false;
+				}
+			}
+			endProgress();
+		} catch (ClassNotFoundException e) {
+			throw new IOException(e);
+		} finally {
+			dataIn.close();
+			fis.close();
+		}
 	}
 }

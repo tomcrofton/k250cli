@@ -1,5 +1,9 @@
 package org.alleypress.k250.serial;
 
+import java.util.ArrayList;
+
+import com.google.common.primitives.Bytes;
+
 public class PacketUtil {
 	
 	public static int PACKET_DATA_SIZE_MAX = 512;
@@ -86,7 +90,7 @@ public class PacketUtil {
 	    dataSize = (dataSize<<8)+(x&0xFF);
 
 	    while (dataSize>0) {
-			x = p[index++]; //size low
+			x = p[index++]; 
 			if (x==0x10) {
 				x = EscapeLookup.getOriginal(p[index++]);
 			}
@@ -107,4 +111,53 @@ public class PacketUtil {
 		return (myCheckSum==givenCheckSum);
 	}
 	
+	public static byte[] unpack(RawPacket packet) {
+		byte[] p = packet.asByteArray();
+		ArrayList<Byte> result = new ArrayList<Byte>();
+		int index=2;
+		int dataSize = 0;
+		
+		byte x = p[index++]; //size high
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+		dataSize=x&0xFF;
+
+		x = p[index++]; //size low
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+	    dataSize = (dataSize<<8)+(x&0xFF);
+
+	    while (dataSize>0) {
+			x = p[index++]; //size low
+			if (x==0x10) {
+				x = EscapeLookup.getOriginal(p[index++]);
+			}
+			result.add(x);
+			dataSize--;
+	    }
+		
+		return Bytes.toArray(result);
+	}
+
+	public static int getDataSize(RawPacket packet) {
+		byte[] p = packet.asByteArray();
+		int index=2;
+		int dataSize = 0;
+		
+		byte x = p[index++]; //size high
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+		dataSize=x&0xFF;
+
+		x = p[index++]; //size low
+		if (x==0x10) {
+			x = EscapeLookup.getOriginal(p[index++]);
+		}
+	    dataSize = (dataSize<<8)+(x&0xFF);
+		
+		return dataSize;
+	}
 }
